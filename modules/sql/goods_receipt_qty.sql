@@ -1,9 +1,11 @@
 ﻿WITH "SourceRows" AS (
     SELECT
+        T0."DocEntry" AS "GRDocEntry",
+        T1."LineNum" AS "GRLineNum",
         T1."ItemCode" AS "ItemCode",
         TO_DECIMAL(IFNULL(T1."Quantity", 0), 19, 6) AS "ReceivedQty",
-        T3."U_DSS_StoreMarkup" AS "U_DSS_StoreMarkup",
-        T2."U_TaxEU" AS "U_TaxEU"
+        TO_DECIMAL(IFNULL(T3."U_DSS_StoreMarkup", 0), 19, 6) AS "U_DSS_StoreMarkup",
+        TO_DECIMAL(T2."U_TaxEU", 19, 6) AS "U_TaxEU"
     FROM "KREMMERHUSET"."OPDN" T0
     INNER JOIN "KREMMERHUSET"."PDN1" T1
         ON T0."DocEntry" = T1."DocEntry"
@@ -17,31 +19,35 @@
 ),
 "FactorRows" AS (
     SELECT
+        S."GRDocEntry",
+        S."GRLineNum",
         S."ItemCode",
         S."ReceivedQty",
         CASE
-            WHEN S."U_TaxEU" = 0 THEN NULL
             WHEN S."U_TaxEU" > 0 THEN S."U_TaxEU"
-            ELSE IFNULL(S."U_DSS_StoreMarkup", 0)
+            ELSE S."U_DSS_StoreMarkup"
         END AS "Factor"
     FROM "SourceRows" S
 ),
-"QtyPerItem" AS (
+"CalculatedRows" AS (
     SELECT
+        F."GRDocEntry",
+        F."GRLineNum",
         F."ItemCode",
-        SUM(F."ReceivedQty") AS "ReceivedQty",
-        SUM(F."ReceivedQty" * F."Factor") AS "CalculatedQty",
-        MAX(F."Factor") AS "FactorUsed"
+        F."ReceivedQty",
+        F."Factor" AS "FactorUsed",
+        TO_DECIMAL(F."ReceivedQty" * F."Factor", 19, 6) AS "CalculatedQty"
     FROM "FactorRows" F
-    WHERE F."Factor" IS NOT NULL
-    GROUP BY F."ItemCode"
+    WHERE IFNULL(F."Factor", 0) > 0
 ),
 "PackSizes" AS (
     SELECT
-        Q."ItemCode",
-        Q."ReceivedQty",
-        Q."CalculatedQty",
-        Q."FactorUsed",
+        C."GRDocEntry",
+        C."GRLineNum",
+        C."ItemCode",
+        C."ReceivedQty",
+        C."FactorUsed",
+        C."CalculatedQty",
         CASE
             WHEN IFNULL((
                 SELECT TO_INT(MAX(IFNULL(S3."BaseQty", 0)))
@@ -52,7 +58,7 @@
                 INNER JOIN "KREMMERHUSET"."UGP1" S3
                     ON S4."UomEntry" = S3."UomEntry"
                 WHERE
-                    S2."ItemCode" = Q."ItemCode"
+                    S2."ItemCode" = C."ItemCode"
                     AND S2."UomType" = 'P'
             ), 0) <= 0 THEN 1
             ELSE IFNULL((
@@ -64,7 +70,7 @@
                 INNER JOIN "KREMMERHUSET"."UGP1" S3
                     ON S4."UomEntry" = S3."UomEntry"
                 WHERE
-                    S2."ItemCode" = Q."ItemCode"
+                    S2."ItemCode" = C."ItemCode"
                     AND S2."UomType" = 'P'
             ), 1)
         END AS "InnerPackQty",
@@ -78,7 +84,7 @@
                 INNER JOIN "KREMMERHUSET"."UGP1" S3
                     ON S4."UomEntry" = S3."UomEntry"
                 WHERE
-                    S2."ItemCode" = Q."ItemCode"
+                    S2."ItemCode" = C."ItemCode"
                     AND S2."UomType" = 'P'
             ), 0) <= 0 THEN 1
             ELSE IFNULL((
@@ -90,14 +96,16 @@
                 INNER JOIN "KREMMERHUSET"."UGP1" S3
                     ON S4."UomEntry" = S3."UomEntry"
                 WHERE
-                    S2."ItemCode" = Q."ItemCode"
+                    S2."ItemCode" = C."ItemCode"
                     AND S2."UomType" = 'P'
             ), 1)
         END AS "OuterPackQty"
-    FROM "QtyPerItem" Q
+    FROM "CalculatedRows" C
 ),
 "Rounded" AS (
     SELECT
+        P."GRDocEntry",
+        P."GRLineNum",
         P."ItemCode",
         P."ReceivedQty",
         P."FactorUsed",
@@ -129,4 +137,4 @@ SELECT
     TO_DECIMAL(R."FactorUsed", 19, 6) AS "FactorUsed"
 FROM "Rounded" R
 WHERE R."Quantity" > 0
-ORDER BY R."ItemCode";
+ORDER BY R."GRDocEntry", R."GRLineNum", R."ItemCode";

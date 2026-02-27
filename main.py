@@ -1,5 +1,6 @@
 ﻿"""CLI entrypoint for GoodsReceipt to StockTransfer."""
 import argparse
+import logging
 from pathlib import Path
 
 from modules.logger_setup import setup_logger
@@ -42,22 +43,30 @@ def main() -> None:
         integration_name="KRE GoodsReceipt to StockTransfer",
     )
 
-    args = _parse_args()
-    if args.prod and args.test:
-        logger.warning("Both --prod and --test are set. Using --prod.")
-        mode = "prod"
-    elif args.prod:
-        mode = "prod"
-    else:
-        mode = "test"
+    logger.info("Starting")
+    try:
+        args = _parse_args()
+        if args.prod and args.test:
+            logger.warning("Both --prod and --test are set. Using --prod.")
+            mode = "prod"
+        elif args.prod:
+            mode = "prod"
+        else:
+            mode = "test"
 
-    logger.info(
-        "Starting CLI with mode=%s, date_from=%s, date_to=%s",
-        mode,
-        args.date_from,
-        args.date_to,
-    )
-    run_sync(mode=mode, date_from=args.date_from, date_to=args.date_to)
+        logger.info(
+            "Starting CLI with mode=%s, date_from=%s, date_to=%s",
+            mode,
+            args.date_from,
+            args.date_to,
+        )
+        run_sync(mode=mode, date_from=args.date_from, date_to=args.date_to)
+    except Exception:
+        logger.exception("Unhandled error during job")
+        raise
+    finally:
+        logger.info("Finished")
+        logging.shutdown()
 
 
 if __name__ == "__main__":

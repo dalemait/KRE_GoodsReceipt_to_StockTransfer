@@ -42,8 +42,8 @@
         Q."ReceivedQty",
         Q."CalculatedQty",
         Q."FactorUsed",
-        IFNULL((
-            IFNULL((
+        CASE
+            WHEN IFNULL((
                 SELECT TO_INT(MAX(IFNULL(S3."BaseQty", 0)))
                 FROM "KREMMERHUSET"."ITM12" S2
                 INNER JOIN "KREMMERHUSET"."OUOM" S4
@@ -54,10 +54,22 @@
                 WHERE
                     S2."ItemCode" = Q."ItemCode"
                     AND S2."UomType" = 'P'
-            ), 0)
-        ), 1) AS "InnerPackQty",
-        IFNULL((
-            IFNULL((
+            ), 0) <= 0 THEN 1
+            ELSE IFNULL((
+                SELECT TO_INT(MAX(IFNULL(S3."BaseQty", 0)))
+                FROM "KREMMERHUSET"."ITM12" S2
+                INNER JOIN "KREMMERHUSET"."OUOM" S4
+                    ON S2."UomEntry" = S4."UomEntry"
+                    AND S4."UomCode" LIKE '%%I%%'
+                INNER JOIN "KREMMERHUSET"."UGP1" S3
+                    ON S4."UomEntry" = S3."UomEntry"
+                WHERE
+                    S2."ItemCode" = Q."ItemCode"
+                    AND S2."UomType" = 'P'
+            ), 1)
+        END AS "InnerPackQty",
+        CASE
+            WHEN IFNULL((
                 SELECT TO_INT(MAX(IFNULL(S3."BaseQty", 0)))
                 FROM "KREMMERHUSET"."ITM12" S2
                 INNER JOIN "KREMMERHUSET"."OUOM" S4
@@ -68,8 +80,20 @@
                 WHERE
                     S2."ItemCode" = Q."ItemCode"
                     AND S2."UomType" = 'P'
-            ), 0)
-        ), 1) AS "OuterPackQty"
+            ), 0) <= 0 THEN 1
+            ELSE IFNULL((
+                SELECT TO_INT(MAX(IFNULL(S3."BaseQty", 0)))
+                FROM "KREMMERHUSET"."ITM12" S2
+                INNER JOIN "KREMMERHUSET"."OUOM" S4
+                    ON S2."UomEntry" = S4."UomEntry"
+                    AND S4."UomCode" LIKE '%%Y%%'
+                INNER JOIN "KREMMERHUSET"."UGP1" S3
+                    ON S4."UomEntry" = S3."UomEntry"
+                WHERE
+                    S2."ItemCode" = Q."ItemCode"
+                    AND S2."UomType" = 'P'
+            ), 1)
+        END AS "OuterPackQty"
     FROM "QtyPerItem" Q
 ),
 "Rounded" AS (
@@ -83,13 +107,13 @@
                 WHEN P."InnerPackQty" = 1
                     AND P."OuterPackQty" > 1
                     AND (
-                        CEIL(P."CalculatedQty" / P."InnerPackQty") * P."InnerPackQty" > P."OuterPackQty"
+                        CEIL(P."CalculatedQty" / NULLIF(P."InnerPackQty", 0)) * P."InnerPackQty" > P."OuterPackQty"
                         OR (
-                            CEIL(P."CalculatedQty" / P."InnerPackQty") * P."InnerPackQty"
-                        ) / P."OuterPackQty" > 0.7
+                            CEIL(P."CalculatedQty" / NULLIF(P."InnerPackQty", 0)) * P."InnerPackQty"
+                        ) / NULLIF(P."OuterPackQty", 0) > 0.7
                     )
-                    THEN CEIL(P."CalculatedQty" / P."OuterPackQty") * P."OuterPackQty"
-                ELSE CEIL(P."CalculatedQty" / P."InnerPackQty") * P."InnerPackQty"
+                    THEN CEIL(P."CalculatedQty" / NULLIF(P."OuterPackQty", 0)) * P."OuterPackQty"
+                ELSE CEIL(P."CalculatedQty" / NULLIF(P."InnerPackQty", 0)) * P."InnerPackQty"
             END,
             19,
             2

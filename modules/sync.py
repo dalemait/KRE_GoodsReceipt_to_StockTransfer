@@ -63,7 +63,7 @@ def _read_last_sync(path: str) -> Optional[datetime]:
         return None
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         value = data.get("last_sync")
         if not value:
@@ -111,7 +111,7 @@ def _query_sap_goods_receipts(
     sql_path = Path(__file__).resolve().parent / "sql" / SQL_FILE_NAME
     logger.info("Running SAP query from %s for date %s", sql_path, target_date.date())
 
-    with open(sql_path, "r", encoding="utf-8") as f:
+    with open(sql_path, "r", encoding="utf-8-sig") as f:
         sql_template = f.read()
 
     sql = _render_sql(sql_template, cfg, target_date)

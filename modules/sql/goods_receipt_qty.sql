@@ -36,7 +36,7 @@
         F."ItemCode",
         F."ReceivedQty",
         F."Factor" AS "FactorUsed",
-        TO_DECIMAL(F."ReceivedQty" * F."Factor", 19, 6) AS "CalculatedQty"
+        TO_DECIMAL(F."ReceivedQty" * (F."Factor" / 100), 19, 6) AS "CalculatedQty"
     FROM "FactorRows" F
     WHERE IFNULL(F."Factor", 0) > 0
 ),
